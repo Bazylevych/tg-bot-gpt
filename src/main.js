@@ -4,6 +4,7 @@ import { code } from "telegraf/format";
 import config from "config";
 import { ogg } from "./ogg.js";
 import { openai } from "./openai.js";
+import { removePath } from "./utils.js";
 
 console.log(config.get("TEST_ENV"));
 
@@ -27,6 +28,25 @@ const bot = new Telegraf(config.get("TELEGRAM_TOKEN"));
 //* установка сессий
 bot.use(session());
 
+bot.telegram.setMyCommands([
+  {
+    command: "start",
+    description: "Start bot",
+  },
+  {
+    command: "new",
+    description: "Create new session (new context)",
+  },
+  {
+    command: "clear",
+    description: "Clear chat",
+  },
+  {
+    command: "list",
+    description: "List command",
+  },
+]);
+
 //* обрабатываем команду new
 bot.command("new", async (ctx) => {
   MESSAGES_IDS.push(ctx.message.message_id);
@@ -45,16 +65,25 @@ bot.command("start", async (ctx) => {
       "Hi, I am a chat gpt bot that can understand both text and voice messages.\n \nPrint /list for watching command list. \n \nSend a text or voice message to get started."
     )
     .then((message) => MESSAGES_IDS.push(message.message_id));
-  //   await ctx
-  //     .reply(JSON.stringify(ctx.message, null, 2))
-  //     .then((message) => MESSAGES_IDS.push(message.message_id));
 });
 
 bot.command("clear", async (ctx) => {
   MESSAGES_IDS.push(ctx.message.message_id);
+  ctx.session = INITIAL_SESSION;
 
-  for (let i = 0; i < MESSAGES_IDS.length; i++) {
-    await ctx.deleteMessage(MESSAGES_IDS[i]);
+  try {
+    await ctx
+      .reply(
+        "Use the /list to display a list of commands or send a voice or text message... "
+      )
+      .then((message) => MESSAGES_IDS.push(message.message_id));
+
+    for (let i = 0; i < MESSAGES_IDS.length - 1; i++) {
+      await ctx.deleteMessage(MESSAGES_IDS[i]);
+    }
+  } catch (e) {
+    console.log("Error while clear chat", e.message);
+    await ctx.reply(code("Error while clear chat. Sorry!"));
   }
 });
 
@@ -90,18 +119,21 @@ bot.on(message("voice"), async (ctx) => {
       .then((message) => MESSAGES_IDS.push(message.message_id)); //* сигнал о том что идет процесс обработки ответа
     const link = await ctx.telegram.getFileLink(ctx.message.voice.file_id); //* получаем ссылку на файл
     const userId = String(ctx.message.from.id); //* получаем user id
-    const oggPath = await ogg.create(link.href, userId);
-    const mp3Path = await ogg.toMp3(oggPath, userId);
+    const oggPath = await ogg.create(link.href, userId); //* получаем файл
+    const mp3Path = await ogg.toMp3(oggPath, userId); //* конвертируем файл в mp3
 
-    const text = await openai.transcription(mp3Path);
+    const text = await openai.transcription(mp3Path); //* конвертируем голос в текст
+    removePath(mp3Path); //* удаляем файл mp3
+
     await ctx
       .reply(code(`Your request: ${text}`))
-      .then((message) => MESSAGES_IDS.push(message.message_id));
+      .then((message) => MESSAGES_IDS.push(message.message_id)); //* даем пользователю в ответ транскипцию его голосового сообщения
 
-    ctx.session.messages.push({ role: openai.roles.USER, content: text });
+    ctx.session.messages.push({ role: openai.roles.USER, content: text }); //* добавляем в сессию сообщение
 
-    const response = await openai.chat(ctx.session.messages);
+    const response = await openai.chat(ctx.session.messages); //* получаем ответ от чата gpt
 
+    //* добавляем сообщение чата в сессию
     ctx.session.messages.push({
       role: openai.roles.ASSISTANT,
       content: response.content,
@@ -109,9 +141,11 @@ bot.on(message("voice"), async (ctx) => {
 
     await ctx
       .reply(response.content)
-      .then((message) => MESSAGES_IDS.push(message.message_id));
+      .then((message) => MESSAGES_IDS.push(message.message_id)); //* отправляем пользователю ответ чата
 
+    //* итерируем запрос
     requestCount++;
+    //* если таймер закончился запускаем его по новой
     if (!requestTimer) {
       requestTimer = setTimeout(() => {
         requestCount = 0;
@@ -131,6 +165,7 @@ bot.on(message("text"), async (ctx) => {
   ctx.session ??= INITIAL_SESSION;
   MESSAGES_IDS.push(ctx.message.message_id);
 
+  //* Проверяем не превышен ли лимит
   if (requestCount >= requestLimit) {
     await ctx
       .reply(
@@ -143,15 +178,17 @@ bot.on(message("text"), async (ctx) => {
   try {
     await ctx
       .reply(code("..."))
-      .then((message) => MESSAGES_IDS.push(message.message_id));
+      .then((message) => MESSAGES_IDS.push(message.message_id)); //* сигнал о том что идет процесс обработки ответа
 
+    //* добавляем в сессию сообщение
     ctx.session.messages.push({
       role: openai.roles.USER,
       content: ctx.message.text,
     });
 
-    const response = await openai.chat(ctx.session.messages);
+    const response = await openai.chat(ctx.session.messages); //* получаем ответ от чата gpt
 
+    //* добавляем сообщение чата в сессию
     ctx.session.messages.push({
       role: openai.roles.ASSISTANT,
       content: response.content,
@@ -159,9 +196,11 @@ bot.on(message("text"), async (ctx) => {
 
     await ctx
       .reply(response.content)
-      .then((message) => MESSAGES_IDS.push(message.message_id));
+      .then((message) => MESSAGES_IDS.push(message.message_id)); //* отправляем пользователю ответ чата
 
+    //* итерируем запрос
     requestCount++;
+    //* если таймер закончился запускаем его по новой
     if (!requestTimer) {
       requestTimer = setTimeout(() => {
         requestCount = 0;
