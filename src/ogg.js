@@ -6,17 +6,19 @@ import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { removePath } from "./utils.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = dirname(fileURLToPath(import.meta.url)); //* определяем текущую папку
 
 class OggConverter {
   constructor() {
     ffmpeg.setFfmpegPath(installer.path);
   }
 
+  //* метод конвертирует ogg в mp3
   toMp3(input, output) {
     try {
-      const outputPath = resolve(dirname(input), `${output}.mp3`);
+      const outputPath = resolve(dirname(input), `${output}.mp3`); //* получаю путь к файлу который буду конвертировать
       return new Promise((resolve, reject) => {
+        //*  процесс конвертации, сохранения нового файла и удаление старого
         ffmpeg(input)
           .inputOption("-t 30")
           .output(outputPath)
@@ -32,14 +34,18 @@ class OggConverter {
     }
   }
 
+  //* метод скачивает и сохраняет файл
   async create(url, filename) {
     try {
-      const oggPath = resolve(__dirname, "../voices", `${filename}.ogg`);
+      const oggPath = resolve(__dirname, "../voices", `${filename}.ogg`); //* определяем путь к файлу .ogg
+
+      //* скачиваем файл
       const response = await axios({
         method: "get",
         url,
         responseType: "stream",
       });
+
       return new Promise((resolve) => {
         const stream = createWriteStream(oggPath);
         response.data.pipe(stream);
@@ -51,4 +57,4 @@ class OggConverter {
   }
 }
 
-export const ogg = new OggConverter();
+export const ogg = new OggConverter(); //* експортируем екземпляр класса
