@@ -1,0 +1,5 @@
+# Telegram bot using OpenAI API in Node.js
+
+This telegram bot uses the OpenAI API to generate text messages based on user input. It can be used to have chats with the user on various topics.
+
+This bot can receive both text and voice messages.

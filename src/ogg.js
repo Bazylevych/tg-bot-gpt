@@ -51,4 +51,4 @@ class OggConverter {
   }
 }
 
-export const ogg = new OggConverter();
+export const ogg = new OggConverter(); //* експортируем екземпляр класса
