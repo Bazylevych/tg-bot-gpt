@@ -100,7 +100,10 @@ bot.on(message("voice"), async (ctx) => {
 
     const audio = await textConverter.textToSpeech(response.content);
 
-    await ctx.sendVoice({ source: audio });
+    await ctx.sendVoice(
+      { source: audio },
+      { title: "Response Assistent", performer: "ChatGPT" }
+    );
     //await ctx.reply(response.content);//* отправляем пользователю ответ чата
 
     //* итерируем запрос
@@ -150,7 +153,10 @@ bot.on(message("text"), async (ctx) => {
 
     const audio = await textConverter.textToSpeech(response.content);
 
-    await ctx.sendVoice({ source: audio });
+    await ctx.sendAudio(
+      { source: audio },
+      { title: "Response Assistent", performer: "ChatGPT" }
+    );
     // await ctx.reply(response.content); //* отправляем пользователю ответ чата
 
     //* итерируем запрос

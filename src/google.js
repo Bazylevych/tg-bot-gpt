@@ -44,10 +44,11 @@ class TextConverter {
         input: { text },
         voice: {
           languageCode: "ru-RU",
-          name: "ru-RU-Wavenet-B",
+          name: "ru-RU-Wavenet-D",
         },
         audioConfig: {
           audioEncoding: "MP3",
+          pitch: -6,
         },
       };
 
