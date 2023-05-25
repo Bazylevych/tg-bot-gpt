@@ -153,7 +153,7 @@ bot.on(message("text"), async (ctx) => {
 
     const audio = await textConverter.textToSpeech(response.content);
 
-    await ctx.sendAudio(
+    await ctx.sendVoice(
       { source: audio },
       { title: "Response Assistent", performer: "ChatGPT" }
     );
