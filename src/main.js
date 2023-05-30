@@ -19,6 +19,8 @@ const INITIAL_SESSION = {
   messages: [],
 };
 
+let textToSpeech = false;
+
 //! временное хранение ids сообщений для их подальшего удаления
 //TODO добавить базу данных
 
@@ -41,6 +43,10 @@ bot.telegram.setMyCommands([
     command: "list",
     description: "List command",
   },
+  {
+    command: "text",
+    description: "goggle text to speech",
+  },
 ]);
 
 //* обрабатываем команду new
@@ -61,6 +67,11 @@ bot.command("list", async (ctx) => {
   await ctx.reply(
     "Command list: \n /start - start bot \n /new - start new dialog with bot \n /clear - clear chat \n /list - command list"
   );
+});
+
+bot.command("text", async (ctx) => {
+  textToSpeech = !textToSpeech;
+  console.log(textToSpeech);
 });
 
 //* обрабатываем голосовое сообщение используя фильтр message()
@@ -87,12 +98,12 @@ bot.on(message("voice"), async (ctx) => {
     removePath(mp3Path); //* удаляем файл mp3
 
     await ctx.reply(code(`Your request: ${text}`)); //* даем пользователю в ответ транскипцию его голосового сообщения
-
+    console.log(text);
     ctx.session.messages.push({ role: openai.roles.USER, content: text }); //* добавляем в сессию сообщение
 
     const response = await openai.chat(ctx.session.messages); //* получаем ответ от чата gpt
 
-    //* добавляем сообщение чата в сессию
+    // //* добавляем сообщение чата в сессию
     ctx.session.messages.push({
       role: openai.roles.ASSISTANT,
       content: response.content,
@@ -123,54 +134,59 @@ bot.on(message("voice"), async (ctx) => {
 
 //* обрабатываем текстовое сообщение используя фильтр message()
 bot.on(message("text"), async (ctx) => {
-  ctx.session ??= INITIAL_SESSION;
+  if (!textToSpeech) {
+    ctx.session ??= INITIAL_SESSION;
 
-  //* Проверяем не превышен ли лимит
-  if (requestCount >= requestLimit) {
-    await ctx.reply(
-      "Превышен лимит сообщений в минуту (3). Повторите свой запрос позже..."
-    );
+    //* Проверяем не превышен ли лимит
+    if (requestCount >= requestLimit) {
+      await ctx.reply(
+        "Превышен лимит сообщений в минуту (3). Повторите свой запрос позже..."
+      );
 
-    return;
-  }
-
-  try {
-    await ctx.reply(code("...")); //* сигнал о том что идет процесс обработки ответа
-
-    //* добавляем в сессию сообщение
-    ctx.session.messages.push({
-      role: openai.roles.USER,
-      content: ctx.message.text,
-    });
-
-    const response = await openai.chat(ctx.session.messages); //* получаем ответ от чата gpt
-
-    //* добавляем сообщение чата в сессию
-    ctx.session.messages.push({
-      role: openai.roles.ASSISTANT,
-      content: response.content,
-    });
-
-    const audio = await textConverter.textToSpeech(response.content);
-
-    await ctx.sendVoice(
-      { source: audio },
-      { title: "Response Assistent", performer: "ChatGPT" }
-    );
-    // await ctx.reply(response.content); //* отправляем пользователю ответ чата
-
-    //* итерируем запрос
-    requestCount++;
-    //* если таймер закончился запускаем его по новой
-    if (!requestTimer) {
-      requestTimer = setTimeout(() => {
-        requestCount = 0;
-        requestTimer = null;
-      }, requestInterval);
+      return;
     }
-  } catch (e) {
-    console.log("Error while text message", e.message);
-    await ctx.reply(code(`Error while text message: ${e.message}`));
+
+    try {
+      await ctx.reply(code("...")); //* сигнал о том что идет процесс обработки ответа
+
+      //* добавляем в сессию сообщение
+      ctx.session.messages.push({
+        role: openai.roles.USER,
+        content: ctx.message.text,
+      });
+
+      const response = await openai.chat(ctx.session.messages); //* получаем ответ от чата gpt
+
+      //* добавляем сообщение чата в сессию
+      ctx.session.messages.push({
+        role: openai.roles.ASSISTANT,
+        content: response.content,
+      });
+
+      const audio = await textConverter.textToSpeech(response.content);
+
+      await ctx.sendVoice(
+        { source: audio },
+        { title: "Response Assistent", performer: "ChatGPT" }
+      );
+      // await ctx.reply(response.content); //* отправляем пользователю ответ чата
+
+      //* итерируем запрос
+      requestCount++;
+      //* если таймер закончился запускаем его по новой
+      if (!requestTimer) {
+        requestTimer = setTimeout(() => {
+          requestCount = 0;
+          requestTimer = null;
+        }, requestInterval);
+      }
+    } catch (e) {
+      console.log("Error while text message", e.message);
+      await ctx.reply(code(`Error while text message: ${e.message}`));
+    }
+  } else {
+    const audio = await textConverter.textToSpeech(ctx.message.text);
+    await ctx.sendAudio({ source: audio }, { title: "Important theme" });
   }
 });
 
